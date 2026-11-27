@@ -84,7 +84,7 @@ export function getDeadlineDate(
   mode: DeadlineMode,
 ): Date {
   const monthOffset = mode === 'sub' ? 1 : 2;
-  const targetDay = mode === 'sub' ? 12 : 10;
+  const targetDay = mode === 'sub' ? 26 : 10;
   const totalMonths = monthIndex + monthOffset;
   const targetMonth = totalMonths % 12;
   const targetYear = year + Math.floor(totalMonths / 12);

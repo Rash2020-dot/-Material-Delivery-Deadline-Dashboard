@@ -441,7 +441,7 @@ export default function App() {
                         : 'bg-slate-200 text-slate-500'
                     }`}
                   >
-                    +1M &bull; 12th
+                    +1M &bull; 26th
                   </span>
                 </button>
               </div>
@@ -456,8 +456,8 @@ export default function App() {
                 ) : (
                   <span>
                     <strong className="text-sky-700">Sub Month Rule:</strong>{' '}
-                    Target deadline is the <strong>12th</strong>, one month
-                    ahead (e.g. Nov 2026 &rarr; 12 Dec 2026, Dec 2026 &rarr; 12
+                    Target deadline is the <strong>26th</strong>, one month
+                    ahead (e.g. Nov 2026 &rarr; 26 Dec 2026, Dec 2026 &rarr; 26
                     Jan 2027)
                   </span>
                 )}
