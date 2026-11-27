@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import {
+  DeadlineMode,
   DelayBucket,
   ItemStatusInfo,
   MaterialCategory,
@@ -22,20 +23,137 @@ export const MATERIAL_CATEGORIES: MaterialCategory[] = [
   'Other',
 ];
 
-export const BASIC_MONTH_OPTIONS = [
-  { value: 0, label: 'January Basic (Target: Mar 10)' },
-  { value: 1, label: 'February Basic (Target: Apr 10)' },
-  { value: 2, label: 'March Basic (Target: May 10)' },
-  { value: 3, label: 'April Basic (Target: Jun 10)' },
-  { value: 4, label: 'May Basic (Target: Jul 10)' },
-  { value: 5, label: 'June Basic (Target: Aug 10)' },
-  { value: 6, label: 'July Basic (Target: Sep 10)' },
-  { value: 7, label: 'August Basic (Target: Oct 10)' },
-  { value: 8, label: 'September Basic (Target: Nov 10)' },
-  { value: 9, label: 'October Basic (Target: Dec 10)' },
-  { value: 10, label: 'November Basic (Target: Jan 10)' },
-  { value: 11, label: 'December Basic (Target: Feb 10)' },
+export const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ];
+
+const SHORT_MONTH_NAMES = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+export interface MonthCycleOption {
+  value: string; // "YYYY-M" (0-indexed month)
+  year: number;
+  monthIndex: number;
+  label: string;
+}
+
+export interface MonthCycleGroup {
+  groupLabel: string;
+  options: MonthCycleOption[];
+}
+
+export function parsePeriodKey(periodKey: string): {
+  year: number;
+  monthIndex: number;
+} {
+  const [yStr, mStr] = periodKey.split('-');
+  const year = Number(yStr);
+  const monthIndex = Number(mStr);
+  return {
+    year: Number.isFinite(year) ? year : 2026,
+    monthIndex: Number.isFinite(monthIndex) ? monthIndex : 8,
+  };
+}
+
+export function getDeadlineDate(
+  monthIndex: number,
+  year: number,
+  mode: DeadlineMode,
+): Date {
+  const monthOffset = mode === 'sub' ? 1 : 2;
+  const targetDay = mode === 'sub' ? 12 : 10;
+  const totalMonths = monthIndex + monthOffset;
+  const targetMonth = totalMonths % 12;
+  const targetYear = year + Math.floor(totalMonths / 12);
+  return new Date(targetYear, targetMonth, targetDay, 23, 59, 59);
+}
+
+function createCycleOption(
+  year: number,
+  monthIndex: number,
+  mode: DeadlineMode,
+): MonthCycleOption {
+  const targetDate = getDeadlineDate(monthIndex, year, mode);
+  const targetMonthShort = SHORT_MONTH_NAMES[targetDate.getMonth()];
+  const targetDay = targetDate.getDate();
+  const targetYear = targetDate.getFullYear();
+  const modeWord = mode === 'sub' ? 'Sub' : 'Basic';
+
+  return {
+    value: `${year}-${monthIndex}`,
+    year,
+    monthIndex,
+    label: `${MONTH_NAMES[monthIndex]} ${year} ${modeWord} (Target: ${targetMonthShort} ${targetDay}, ${targetYear})`,
+  };
+}
+
+export function buildMonthCycleGroups(
+  mode: DeadlineMode,
+  extraYears: number[] = [],
+): MonthCycleGroup[] {
+  const groups: MonthCycleGroup[] = [];
+
+  // Current 2026 cycle (Sep - Dec 2026) first so default Sep 2026, Nov 2026, Dec 2026 are right at the top
+  groups.push({
+    groupLabel: '2026 (Sep – Dec)',
+    options: [8, 9, 10, 11].map((m) => createCycleOption(2026, m, mode)),
+  });
+
+  // Full 2027 cycle (Jan - Dec 2027) immediately after Dec 2026 so January Basic/Sub naturally lands in 2027
+  groups.push({
+    groupLabel: '2027 (Jan – Dec)',
+    options: Array.from({ length: 12 }, (_, m) =>
+      createCycleOption(2027, m, mode),
+    ),
+  });
+
+  // Any additional future years present in uploaded data (e.g. 2028)
+  const futureYears = [...new Set(extraYears)]
+    .filter((y) => y > 2027 && y <= 2035)
+    .sort((a, b) => a - b);
+
+  futureYears.forEach((y) => {
+    groups.push({
+      groupLabel: `${y} (Jan – Dec)`,
+      options: Array.from({ length: 12 }, (_, m) =>
+        createCycleOption(y, m, mode),
+      ),
+    });
+  });
+
+  // Earlier 2026 months (Jan - Aug 2026) for historical reference if needed
+  groups.push({
+    groupLabel: 'Earlier 2026 (Jan – Aug)',
+    options: [0, 1, 2, 3, 4, 5, 6, 7].map((m) =>
+      createCycleOption(2026, m, mode),
+    ),
+  });
+
+  return groups;
+}
 
 export function formatLocalDateISO(date: Date): string {
   const year = date.getFullYear();
@@ -217,6 +335,13 @@ export function getDemoMaterialData(): RawMaterialItem[] {
   );
 }
 
+export function getFatherCode(materialCode: string): string {
+  const trimmed = String(materialCode || '').trim();
+  if (!trimmed || trimmed.toUpperCase() === 'N/A') return 'N/A';
+  const parts = trimmed.split(/\s+/);
+  return parts[0] || trimmed;
+}
+
 export function getMaterialCategory(code: string): MaterialCategory {
   if (!code) return 'Other';
   const clean = String(code).trim().toUpperCase();
@@ -231,12 +356,7 @@ export function getMaterialCategory(code: string): MaterialCategory {
 }
 
 export function getTargetDeadline(basicMonthIndex: number, year: number): Date {
-  const targetMonth = (basicMonthIndex + 2) % 12;
-  let targetYear = year;
-  if (basicMonthIndex + 2 >= 12) {
-    targetYear += 1;
-  }
-  return new Date(targetYear, targetMonth, 10, 23, 59, 59);
+  return getDeadlineDate(basicMonthIndex, year, 'basic');
 }
 
 export function calculateItemStatus(
@@ -284,6 +404,7 @@ export function exportFilteredToExcel(items: ProcessedMaterialItem[]): void {
   const exportRows = items.map((item) => ({
     Supplier: item.supplier,
     'PO Number': item.poNumber,
+    'Father Code': item.fatherCode,
     'Material Code': item.materialCode,
     Category: item.category,
     'Scheduled Quantity': item.qty,

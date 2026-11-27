@@ -10,6 +10,8 @@ export type DelayBucket =
 
 export type OriginCategoryFilter = 'ALL' | 'CNY' | 'NON_CNY';
 
+export type DeadlineMode = 'basic' | 'sub';
+
 export type SubTableStatusFilter =
   | 'ALL'
   | 'ON_TIME'
@@ -41,6 +43,7 @@ export interface ItemStatusInfo {
 
 export interface ProcessedMaterialItem extends RawMaterialItem {
   category: MaterialCategory;
+  fatherCode: string;
   statusInfo: ItemStatusInfo;
 }
 
@@ -56,6 +59,13 @@ export interface BucketTotals {
 export interface CategorySummaryRow extends BucketTotals {
   category: MaterialCategory;
   total: number;
+}
+
+export interface FatherCodeGroup {
+  fatherCode: string;
+  items: ProcessedMaterialItem[];
+  buckets: BucketTotals;
+  totalQty: number;
 }
 
 export interface SupplierGroup {

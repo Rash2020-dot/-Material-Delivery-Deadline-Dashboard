@@ -3,7 +3,8 @@
  * without uploading private/production Excel files.
  *
  * All supplier names, PO numbers, material codes, and quantities below are
- * completely fictional sample records.
+ * completely fictional sample records. Material values contain 2-3 words where
+ * the first word represents the Father Code.
  */
 
 export interface DemoExcelRow {
@@ -20,7 +21,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '20104 Zenith Fabrics Co. Ltd',
     'Purchasing Document': '4500192841',
-    Material: 'TY-44820-BLK',
+    Material: 'TY44820 BLACK 150CM',
     'Scheduled Quantity': 12500,
     Currency: 'CNY',
     'Delivery Date': '2026-10-20',
@@ -28,23 +29,23 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '20104 Zenith Fabrics Co. Ltd',
     'Purchasing Document': '4500192842',
-    Material: 'TF-90211-NVY',
+    Material: 'TY44820 NAVY 150CM',
     'Scheduled Quantity': 8400,
-    Currency: 'CNY',
-    'Delivery Date': '2026-10-26',
-  },
-  {
-    'Supplier/Supplying Plant': '20104 Zenith Fabrics Co. Ltd',
-    'Purchasing Document': '4500192855',
-    Material: 'TU-31509-WHT',
-    'Scheduled Quantity': 6200,
     Currency: 'CNY',
     'Delivery Date': '2026-11-01',
   },
   {
     'Supplier/Supplying Plant': '20104 Zenith Fabrics Co. Ltd',
+    'Purchasing Document': '4500192855',
+    Material: 'TF90211 WHITE 160CM',
+    'Scheduled Quantity': 6200,
+    Currency: 'CNY',
+    'Delivery Date': '2026-10-25',
+  },
+  {
+    'Supplier/Supplying Plant': '20104 Zenith Fabrics Co. Ltd',
     'Purchasing Document': '4500192890',
-    Material: 'FO-11804-GRY',
+    Material: 'TF90211 GREY 160CM',
     'Scheduled Quantity': 4100,
     Currency: 'CNY',
     'Delivery Date': '2026-11-09',
@@ -52,7 +53,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '20104 Zenith Fabrics Co. Ltd',
     'Purchasing Document': '4500192914',
-    Material: 'TS-77410-CRM',
+    Material: 'TS77410 CREAM MESH',
     'Scheduled Quantity': 3300,
     Currency: 'CNY',
     'Delivery Date': '2026-11-29',
@@ -62,7 +63,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '30412 Apex Lace Mills',
     'Purchasing Document': '4500201105',
-    Material: 'BA-61204-IVR',
+    Material: 'BA61204 IVORY LACE',
     'Scheduled Quantity': 9600,
     Currency: 'CNY',
     'Delivery Date': '2026-10-24',
@@ -70,7 +71,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '30412 Apex Lace Mills',
     'Purchasing Document': '4500201122',
-    Material: 'BI-88340-PNK',
+    Material: 'BA61204 PINK LACE',
     'Scheduled Quantity': 5400,
     Currency: 'CNY',
     'Delivery Date': '2026-11-02',
@@ -78,7 +79,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '30412 Apex Lace Mills',
     'Purchasing Document': '4500201189',
-    Material: 'BZ-44102-BLK',
+    Material: 'BZ44102 BLACK TRIM',
     'Scheduled Quantity': 4800,
     Currency: 'CNY',
     'Delivery Date': '2026-11-16',
@@ -86,7 +87,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '30412 Apex Lace Mills',
     'Purchasing Document': '4500201204',
-    Material: 'BA-61299-RED',
+    Material: 'BA61204 RED LACE',
     'Scheduled Quantity': 2900,
     Currency: 'USD',
     'Delivery Date': '2026-11-03',
@@ -96,7 +97,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '40819 Horizon Elastics (Pvt) Ltd',
     'Purchasing Document': '4500310412',
-    Material: 'EL-22014-BLK',
+    Material: 'EL22014 BLACK 12MM',
     'Scheduled Quantity': 15200,
     Currency: 'USD',
     'Delivery Date': '2026-10-30',
@@ -104,7 +105,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '40819 Horizon Elastics (Pvt) Ltd',
     'Purchasing Document': '4500310448',
-    Material: 'EL-22089-WHT',
+    Material: 'EL22014 WHITE 12MM',
     'Scheduled Quantity': 7800,
     Currency: 'USD',
     'Delivery Date': '2026-11-08',
@@ -112,7 +113,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '40819 Horizon Elastics (Pvt) Ltd',
     'Purchasing Document': '4500310491',
-    Material: 'EL-22145-NUD',
+    Material: 'EL22014 NUDE 12MM',
     'Scheduled Quantity': 3900,
     Currency: 'USD',
     'Delivery Date': '2026-11-22',
@@ -120,7 +121,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '40819 Horizon Elastics (Pvt) Ltd',
     'Purchasing Document': '4500310508',
-    Material: 'EL-22310-NVY',
+    Material: 'EL22310 NAVY 18MM',
     'Scheduled Quantity': 2100,
     Currency: 'USD',
     'Delivery Date': '2026-12-08',
@@ -130,7 +131,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '51208 Pacific Trims International',
     'Purchasing Document': '4500418020',
-    Material: 'TR-55100-SLV',
+    Material: 'TR55100 SILVER HOOK',
     'Scheduled Quantity': 11000,
     Currency: 'CNY',
     'Delivery Date': '2026-10-22',
@@ -138,7 +139,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '51208 Pacific Trims International',
     'Purchasing Document': '4500418044',
-    Material: 'BT-10482-GLD',
+    Material: 'TR55100 GOLD HOOK',
     'Scheduled Quantity': 4300,
     Currency: 'CNY',
     'Delivery Date': '2026-11-04',
@@ -146,7 +147,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '51208 Pacific Trims International',
     'Purchasing Document': '4500418099',
-    Material: 'PI-67820-BLU',
+    Material: 'PI67820 BLUE INTERLINING',
     'Scheduled Quantity': 5600,
     Currency: 'CNY',
     'Delivery Date': '2026-11-21',
@@ -154,7 +155,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '51208 Pacific Trims International',
     'Purchasing Document': '4500418115',
-    Material: 'LB-99012-WHT',
+    Material: 'LB99012 WHITE CARE',
     'Scheduled Quantity': 2500,
     Currency: 'CNY',
     'Delivery Date': '2026-12-05',
@@ -164,7 +165,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '62015 Continental Textiles Ltd',
     'Purchasing Document': '4500529100',
-    Material: 'TY-80112-OLV',
+    Material: 'TY80112 OLIVE JERSEY',
     'Scheduled Quantity': 9200,
     Currency: 'EUR',
     'Delivery Date': '2026-11-01',
@@ -172,7 +173,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '62015 Continental Textiles Ltd',
     'Purchasing Document': '4500529145',
-    Material: 'TF-80419-CHR',
+    Material: 'TY80112 CHARCOAL JERSEY',
     'Scheduled Quantity': 6700,
     Currency: 'EUR',
     'Delivery Date': '2026-11-12',
@@ -180,7 +181,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '62015 Continental Textiles Ltd',
     'Purchasing Document': '4500529188',
-    Material: 'BI-51902-IVR',
+    Material: 'BI51902 IVORY GALLOON',
     'Scheduled Quantity': 3400,
     Currency: 'EUR',
     'Delivery Date': '2026-11-28',
@@ -190,7 +191,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '71902 Meridian Accessories Supply',
     'Purchasing Document': '4500640211',
-    Material: 'HW-33018-BLK',
+    Material: 'HW33018 BLACK RING',
     'Scheduled Quantity': 6800,
     Currency: 'USD',
     'Delivery Date': '2026-11-02',
@@ -198,7 +199,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '71902 Meridian Accessories Supply',
     'Purchasing Document': '4500640255',
-    Material: 'EL-91004-GRY',
+    Material: 'EL91004 GREY STRAP',
     'Scheduled Quantity': 4500,
     Currency: 'USD',
     'Delivery Date': '2026-11-18',
@@ -206,7 +207,7 @@ export const DEMO_MATERIAL_ROWS: DemoExcelRow[] = [
   {
     'Supplier/Supplying Plant': '71902 Meridian Accessories Supply',
     'Purchasing Document': '4500640290',
-    Material: 'PK-41200-CLR',
+    Material: 'HW33018 CLEAR SLIDER',
     'Scheduled Quantity': 3100,
     Currency: 'USD',
     'Delivery Date': '2026-11-26',

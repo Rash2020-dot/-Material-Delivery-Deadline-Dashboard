@@ -1,5 +1,6 @@
 import {
   BucketTotals,
+  FatherCodeGroup,
   MaterialCategory,
   OriginCategoryFilter,
   ProcessedMaterialItem,
@@ -10,6 +11,7 @@ import { formatLocalDateISO, MATERIAL_CATEGORIES } from './deliveryUtils';
 export interface ExportHtmlReportParams {
   items: ProcessedMaterialItem[];
   formattedDeadline: string;
+  deadlineModeLabel?: string;
   basicMonthLabel: string;
   selectedSupplier: string;
   originCategory: OriginCategoryFilter;
@@ -52,6 +54,7 @@ export function exportFullViewToHtml(params: ExportHtmlReportParams): void {
   const {
     items,
     formattedDeadline,
+    deadlineModeLabel = 'Basic Month',
     basicMonthLabel,
     selectedSupplier,
     originCategory,
@@ -150,8 +153,12 @@ export function exportFullViewToHtml(params: ExportHtmlReportParams): void {
     `;
   }).join('');
 
-  // 2. Build Supplier Breakdown Aggregation
-  const suppliersMap: Record<string, SupplierGroup> = {};
+  // 2. Build Supplier Breakdown + Per-Supplier Father Code Summary Aggregation
+  const suppliersMap: Record<
+    string,
+    SupplierGroup & { fatherMap: Record<string, FatherCodeGroup> }
+  > = {};
+
   items.forEach((item) => {
     if (!suppliersMap[item.supplier]) {
       suppliersMap[item.supplier] = {
@@ -166,17 +173,44 @@ export function exportFullViewToHtml(params: ExportHtmlReportParams): void {
           MORE_4_WKS: 0,
         },
         totalQty: 0,
+        fatherMap: {},
       };
     }
     const g = suppliersMap[item.supplier];
     g.items.push(item);
     g.buckets[item.statusInfo.bucket] += item.qty;
     g.totalQty += item.qty;
+
+    const fc = item.fatherCode;
+    if (!g.fatherMap[fc]) {
+      g.fatherMap[fc] = {
+        fatherCode: fc,
+        items: [],
+        buckets: {
+          ON_TIME: 0,
+          '1_WK': 0,
+          '2_WKS': 0,
+          '3_WKS': 0,
+          '4_WKS': 0,
+          MORE_4_WKS: 0,
+        },
+        totalQty: 0,
+      };
+    }
+    const fcGroup = g.fatherMap[fc];
+    fcGroup.items.push(item);
+    fcGroup.buckets[item.statusInfo.bucket] += item.qty;
+    fcGroup.totalQty += item.qty;
   });
 
-  const sortedSuppliers = Object.values(suppliersMap).sort(
-    (a, b) => b.totalQty - a.totalQty,
-  );
+  const sortedSuppliers = Object.values(suppliersMap)
+    .sort((a, b) => b.totalQty - a.totalQty)
+    .map(({ fatherMap, ...rest }) => ({
+      ...rest,
+      fatherCodes: Object.values(fatherMap).sort(
+        (a, b) => b.totalQty - a.totalQty,
+      ),
+    }));
 
   const supplierRowsHtml =
     sortedSuppliers.length === 0
@@ -185,6 +219,31 @@ export function exportFullViewToHtml(params: ExportHtmlReportParams): void {
           .map((supp, idx) => {
             const suppId = `supp-${idx}`;
             const b = supp.buckets;
+
+            const fatherRowsHtml = supp.fatherCodes
+              .map((fc) => {
+                const fb = fc.buckets;
+                return `
+                  <tr class="fc-row fc-row-${suppId}"
+                      data-fc="${escapeHtml(fc.fatherCode)}"
+                      onclick="toggleFatherCodeFilter('${suppId}', this)">
+                    <td class="sub-mat">
+                      <div class="supp-name-wrap">
+                        <span>${escapeHtml(fc.fatherCode)}</span>
+                        <span class="item-count">${fc.items.length} item${fc.items.length > 1 ? 's' : ''}</span>
+                      </div>
+                    </td>
+                    <td class="num c-emerald bg-emerald-tint">${fmtQtyPctHtml(fb.ON_TIME, fc.totalQty)}</td>
+                    <td class="num c-amber bg-amber-tint">${fmtQtyPctHtml(fb['1_WK'], fc.totalQty)}</td>
+                    <td class="num c-orange bg-orange-tint">${fmtQtyPctHtml(fb['2_WKS'], fc.totalQty)}</td>
+                    <td class="num c-rose bg-rose-tint">${fmtQtyPctHtml(fb['3_WKS'], fc.totalQty)}</td>
+                    <td class="num c-red bg-red-tint">${fmtQtyPctHtml(fb['4_WKS'], fc.totalQty)}</td>
+                    <td class="num c-purple bg-purple-tint">${fmtQtyPctHtml(fb.MORE_4_WKS, fc.totalQty)}</td>
+                    <td class="num cell-total">${fmtQtyPctHtml(fc.totalQty, supp.totalQty)}</td>
+                  </tr>
+                `;
+              })
+              .join('');
 
             const subRowsHtml = supp.items
               .map((it) => {
@@ -199,11 +258,15 @@ export function exportFullViewToHtml(params: ExportHtmlReportParams): void {
 
                 return `
                   <tr class="sub-row supp-item-row-${suppId}"
+                      data-fc="${escapeHtml(it.fatherCode)}"
                       data-mat="${escapeHtml(it.materialCode.toLowerCase())}"
                       data-po="${escapeHtml(it.poNumber.toLowerCase())}"
                       data-eta="${escapeHtml(formattedEta)}"
                       data-status="${escapeHtml(it.statusInfo.bucket)}">
-                    <td class="sub-mat">${escapeHtml(it.materialCode)}</td>
+                    <td class="sub-mat">
+                      <div>${escapeHtml(it.materialCode)}</div>
+                      <span class="fc-tag">Father: ${escapeHtml(it.fatherCode)}</span>
+                    </td>
                     <td class="sub-po">${escapeHtml(it.poNumber)}</td>
                     <td class="num sub-qty">${escapeHtml(it.qty.toLocaleString())}</td>
                     <td class="center"><span class="curr-badge ${currClass}">${escapeHtml(it.currency)}</span></td>
@@ -221,7 +284,7 @@ export function exportFullViewToHtml(params: ExportHtmlReportParams): void {
                   <div class="supp-name-wrap">
                     <span id="icon-${suppId}" class="chevron">&#9656;</span>
                     <span>${escapeHtml(supp.name)}</span>
-                    <span class="item-count">${supp.items.length} items</span>
+                    <span class="item-count">${supp.fatherCodes.length} father code${supp.fatherCodes.length > 1 ? 's' : ''} &bull; ${supp.items.length} items</span>
                   </div>
                 </td>
                 <td class="num c-emerald bg-emerald-tint">${fmtQtyPctHtml(b.ON_TIME, supp.totalQty)}</td>
@@ -236,6 +299,38 @@ export function exportFullViewToHtml(params: ExportHtmlReportParams): void {
               <tr id="${suppId}" class="supp-detail-row hidden">
                 <td colspan="9" class="detail-td">
                   <div class="detail-box">
+                    <div class="fc-card">
+                      <div class="fc-card-head">
+                        <div class="supp-name-wrap">
+                          <span class="fc-title">Father Code Summary</span>
+                          <span class="pill-sky">${supp.fatherCodes.length} code${supp.fatherCodes.length > 1 ? 's' : ''}</span>
+                        </div>
+                        <div class="fc-hint-wrap">
+                          <span id="fc-status-${suppId}" class="fc-hint">Click a Father Code row to filter PO lines below</span>
+                          <button type="button" id="fc-clear-${suppId}" class="fc-clear-btn hidden" onclick="clearFatherCodeFilter('${suppId}')">Clear Filter &times;</button>
+                        </div>
+                      </div>
+                      <div class="table-wrap">
+                        <table class="sub-table">
+                          <thead>
+                            <tr>
+                              <th style="min-width:170px">Father Code</th>
+                              <th class="num th-emerald">On Time Qty</th>
+                              <th class="num th-amber">1 Wk Late</th>
+                              <th class="num th-orange">2 Wks Late</th>
+                              <th class="num th-rose">3 Wks Late</th>
+                              <th class="num th-red">4 Wks Late</th>
+                              <th class="num th-purple">&gt; 4 Wks Late</th>
+                              <th class="num th-total">Total Qty</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            ${fatherRowsHtml}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
                     <div class="detail-inner">
                       <table class="sub-table">
                         <thead>
@@ -457,11 +552,11 @@ export function exportFullViewToHtml(params: ExportHtmlReportParams): void {
     .card-header h2 { margin: 0; font-size: 16px; font-weight: 700; color: #1e293b; }
     .card-header p { margin: 3px 0 0; font-size: 12px; color: #64748b; }
     .pill-sky {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
       background: #e0f2fe;
       color: #075985;
-      padding: 4px 10px;
+      padding: 3px 9px;
       border-radius: 999px;
     }
     .accordion-actions { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #64748b; }
@@ -549,7 +644,56 @@ export function exportFullViewToHtml(params: ExportHtmlReportParams): void {
     .view-col { color: #0284c7; font-weight: 600; }
     .hidden { display: none; }
     .detail-td { padding: 0 !important; background: #f1f5f9; }
-    .detail-box { padding: 16px; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; }
+    .detail-box {
+      padding: 16px;
+      border-top: 1px solid #e2e8f0;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .fc-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .fc-card-head {
+      padding: 10px 16px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .fc-title { font-size: 12px; font-weight: 700; color: #1e293b; }
+    .fc-hint-wrap { display: flex; align-items: center; gap: 8px; }
+    .fc-hint { font-size: 11px; color: #94a3b8; }
+    .fc-clear-btn {
+      background: #0284c7;
+      color: #ffffff;
+      border: none;
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .fc-row { cursor: pointer; }
+    .fc-row.selected { background: #f0f9ff !important; outline: 1px solid #7dd3fc; outline-offset: -1px; }
+    .fc-tag {
+      display: inline-block;
+      margin-top: 3px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      background: #f0f9ff;
+      color: #0369a1;
+    }
     .detail-inner {
       background: #ffffff;
       border: 1px solid #e2e8f0;
@@ -654,7 +798,7 @@ export function exportFullViewToHtml(params: ExportHtmlReportParams): void {
           <div class="filter-chips">
             <span class="chip"><strong>Source:</strong>${escapeHtml(dataSourceLabel)}</span>
             <span class="chip"><strong>Supplier:</strong>${escapeHtml(selectedSupplier === 'ALL' ? 'All Suppliers' : selectedSupplier)}</span>
-            <span class="chip"><strong>Basic Month:</strong>${escapeHtml(basicMonthLabel)}</span>
+            <span class="chip"><strong>${escapeHtml(deadlineModeLabel)}:</strong>${escapeHtml(basicMonthLabel)}</span>
             <span class="chip"><strong>Origin:</strong>${escapeHtml(getOriginLabel(originCategory))}</span>
             ${searchQuery.trim() ? `<span class="chip"><strong>Search:</strong>${escapeHtml(searchQuery.trim())}</span>` : ''}
           </div>
@@ -672,7 +816,7 @@ export function exportFullViewToHtml(params: ExportHtmlReportParams): void {
               </svg>
             </div>
             <div>
-              <div class="banner-label">Active Basic Month Deadline</div>
+              <div class="banner-label">Active ${escapeHtml(deadlineModeLabel)} Deadline</div>
               <div class="banner-title">Target Delivery Deadline: ${escapeHtml(formattedDeadline)}</div>
             </div>
           </div>
@@ -732,7 +876,7 @@ export function exportFullViewToHtml(params: ExportHtmlReportParams): void {
           <div class="card-header">
             <div>
               <h2>Supplier Lead Time &amp; Delivery Breakdown</h2>
-              <p>Click supplier row to expand. Quantities are shown with their percentage (%) distribution.</p>
+              <p>Click supplier row to expand Father Code summary &amp; material details. Quantities are shown with their percentage (%) distribution.</p>
             </div>
             <div class="accordion-actions">
               <button type="button" class="link-btn" onclick="toggleAllAccordions(true)">Expand All</button>
@@ -787,6 +931,8 @@ export function exportFullViewToHtml(params: ExportHtmlReportParams): void {
   </footer>
 
   <script>
+    var selectedFatherCodes = {};
+
     function toggleAccordion(id) {
       var row = document.getElementById(id);
       var icon = document.getElementById('icon-' + id);
@@ -822,7 +968,46 @@ export function exportFullViewToHtml(params: ExportHtmlReportParams): void {
       });
     }
 
+    function toggleFatherCodeFilter(suppId, rowEl) {
+      var fc = rowEl.getAttribute('data-fc') || '';
+      if (selectedFatherCodes[suppId] === fc) {
+        selectedFatherCodes[suppId] = '';
+      } else {
+        selectedFatherCodes[suppId] = fc;
+      }
+      updateFatherCodeSelectionUI(suppId);
+      filterSupplierSubTable(suppId);
+    }
+
+    function clearFatherCodeFilter(suppId) {
+      selectedFatherCodes[suppId] = '';
+      updateFatherCodeSelectionUI(suppId);
+      filterSupplierSubTable(suppId);
+    }
+
+    function updateFatherCodeSelectionUI(suppId) {
+      var activeFc = selectedFatherCodes[suppId] || '';
+      var fcRows = document.querySelectorAll('.fc-row-' + suppId);
+      fcRows.forEach(function (r) {
+        if (activeFc && r.getAttribute('data-fc') === activeFc) {
+          r.classList.add('selected');
+        } else {
+          r.classList.remove('selected');
+        }
+      });
+      var statusEl = document.getElementById('fc-status-' + suppId);
+      var clearBtn = document.getElementById('fc-clear-' + suppId);
+      if (activeFc) {
+        if (statusEl) statusEl.textContent = 'Filtered: ' + activeFc;
+        if (clearBtn) clearBtn.classList.remove('hidden');
+      } else {
+        if (statusEl) statusEl.textContent = 'Click a Father Code row to filter PO lines below';
+        if (clearBtn) clearBtn.classList.add('hidden');
+      }
+    }
+
     function filterSupplierSubTable(suppId) {
+      var activeFc = selectedFatherCodes[suppId] || '';
       var matFilter = (document.getElementById('f_mat_' + suppId)?.value || '').toLowerCase().trim();
       var poFilter = (document.getElementById('f_po_' + suppId)?.value || '').toLowerCase().trim();
       var etaFilter = (document.getElementById('f_eta_' + suppId)?.value || '').trim();
@@ -830,12 +1015,14 @@ export function exportFullViewToHtml(params: ExportHtmlReportParams): void {
 
       var rows = document.querySelectorAll('.supp-item-row-' + suppId);
       rows.forEach(function (row) {
+        var fcVal = row.getAttribute('data-fc') || '';
         var matVal = row.getAttribute('data-mat') || '';
         var poVal = row.getAttribute('data-po') || '';
         var etaVal = row.getAttribute('data-eta') || '';
         var statusVal = row.getAttribute('data-status') || '';
 
         var visible = true;
+        if (activeFc && fcVal !== activeFc) visible = false;
         if (matFilter && matVal.indexOf(matFilter) === -1) visible = false;
         if (poFilter && poVal.indexOf(poFilter) === -1) visible = false;
         if (etaFilter && etaVal.indexOf(etaFilter) === -1) visible = false;

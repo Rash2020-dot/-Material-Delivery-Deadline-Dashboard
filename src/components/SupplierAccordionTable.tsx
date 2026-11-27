@@ -6,8 +6,11 @@ import {
   Factory,
   Filter,
   Inbox,
+  Layers,
+  X,
 } from 'lucide-react';
 import {
+  FatherCodeGroup,
   ProcessedMaterialItem,
   SubTableStatusFilter,
   SupplierGroup,
@@ -20,6 +23,7 @@ interface SupplierAccordionTableProps {
 }
 
 interface SubFilters {
+  fatherCode: string;
   material: string;
   po: string;
   eta: string;
@@ -27,11 +31,16 @@ interface SubFilters {
 }
 
 const DEFAULT_SUB_FILTERS: SubFilters = {
+  fatherCode: '',
   material: '',
   po: '',
   eta: '',
   status: 'ALL',
 };
+
+interface SupplierWithFatherCodes extends SupplierGroup {
+  fatherCodes: FatherCodeGroup[];
+}
 
 export function SupplierAccordionTable({ items }: SupplierAccordionTableProps) {
   const [expandedSuppliers, setExpandedSuppliers] = useState<
@@ -43,7 +52,10 @@ export function SupplierAccordionTable({ items }: SupplierAccordionTableProps) {
 
   const { sortedSuppliers, grandTotal } = useMemo(() => {
     const total = items.reduce((sum, i) => sum + i.qty, 0);
-    const map: Record<string, SupplierGroup> = {};
+    const map: Record<
+      string,
+      SupplierGroup & { fatherMap: Record<string, FatherCodeGroup> }
+    > = {};
 
     items.forEach((item) => {
       if (!map[item.supplier]) {
@@ -59,15 +71,45 @@ export function SupplierAccordionTable({ items }: SupplierAccordionTableProps) {
             MORE_4_WKS: 0,
           },
           totalQty: 0,
+          fatherMap: {},
         };
       }
       const group = map[item.supplier];
       group.items.push(item);
       group.buckets[item.statusInfo.bucket] += item.qty;
       group.totalQty += item.qty;
+
+      const fc = item.fatherCode;
+      if (!group.fatherMap[fc]) {
+        group.fatherMap[fc] = {
+          fatherCode: fc,
+          items: [],
+          buckets: {
+            ON_TIME: 0,
+            '1_WK': 0,
+            '2_WKS': 0,
+            '3_WKS': 0,
+            '4_WKS': 0,
+            MORE_4_WKS: 0,
+          },
+          totalQty: 0,
+        };
+      }
+      const fcGroup = group.fatherMap[fc];
+      fcGroup.items.push(item);
+      fcGroup.buckets[item.statusInfo.bucket] += item.qty;
+      fcGroup.totalQty += item.qty;
     });
 
-    const sorted = Object.values(map).sort((a, b) => b.totalQty - a.totalQty);
+    const sorted: SupplierWithFatherCodes[] = Object.values(map)
+      .sort((a, b) => b.totalQty - a.totalQty)
+      .map(({ fatherMap, ...rest }) => ({
+        ...rest,
+        fatherCodes: Object.values(fatherMap).sort(
+          (a, b) => b.totalQty - a.totalQty,
+        ),
+      }));
+
     return { sortedSuppliers: sorted, grandTotal: total };
   }, [items]);
 
@@ -100,6 +142,23 @@ export function SupplierAccordionTable({ items }: SupplierAccordionTableProps) {
     }));
   };
 
+  const toggleFatherCodeSelection = (
+    supplierName: string,
+    fatherCode: string,
+  ) => {
+    setSubFiltersBySupplier((prev) => {
+      const current = prev[supplierName] ?? DEFAULT_SUB_FILTERS;
+      const nextFc = current.fatherCode === fatherCode ? '' : fatherCode;
+      return {
+        ...prev,
+        [supplierName]: {
+          ...current,
+          fatherCode: nextFc,
+        },
+      };
+    });
+  };
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
       <div className="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-slate-50/50">
@@ -109,8 +168,9 @@ export function SupplierAccordionTable({ items }: SupplierAccordionTableProps) {
             <span>Supplier Lead Time &amp; Delivery Breakdown</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Click supplier row to expand. Quantities are shown with their
-            percentage (%) distribution.
+            Click supplier row to expand Father Code summary &amp; material
+            details. Quantities are shown with their percentage (%)
+            distribution.
           </p>
         </div>
         <div className="text-xs text-slate-500 flex items-center space-x-2">
@@ -184,6 +244,12 @@ export function SupplierAccordionTable({ items }: SupplierAccordionTableProps) {
                   const statusVal = it.statusInfo.bucket;
 
                   if (
+                    subFilters.fatherCode &&
+                    it.fatherCode !== subFilters.fatherCode
+                  ) {
+                    return false;
+                  }
+                  if (
                     subFilters.material &&
                     !matVal.includes(subFilters.material.toLowerCase().trim())
                   ) {
@@ -244,6 +310,8 @@ export function SupplierAccordionTable({ items }: SupplierAccordionTableProps) {
                           />
                           <span>{supp.name}</span>
                           <span className="text-[10px] bg-slate-100 text-slate-500 font-normal px-2 py-0.5 rounded-full shrink-0">
+                            {supp.fatherCodes.length} father code
+                            {supp.fatherCodes.length > 1 ? 's' : ''} &bull;{' '}
                             {supp.items.length} items
                           </span>
                         </div>
@@ -277,7 +345,166 @@ export function SupplierAccordionTable({ items }: SupplierAccordionTableProps) {
                     {isOpen && (
                       <tr className="bg-slate-50/80">
                         <td colSpan={9} className="p-0">
-                          <div className="p-4 bg-slate-100/70 border-y border-slate-200">
+                          <div className="p-4 bg-slate-100/70 border-y border-slate-200 space-y-4">
+                            {/* Father Code Summary Table under this Supplier */}
+                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                              <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center space-x-2">
+                                  <Layers className="w-3.5 h-3.5 text-sky-600" />
+                                  <span className="text-xs font-bold text-slate-800">
+                                    Father Code Summary
+                                  </span>
+                                  <span className="text-[10px] bg-sky-100 text-sky-800 font-semibold px-2 py-0.5 rounded-full">
+                                    {supp.fatherCodes.length} code
+                                    {supp.fatherCodes.length > 1 ? 's' : ''}
+                                  </span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  {subFilters.fatherCode ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        updateSubFilter(
+                                          supp.name,
+                                          'fatherCode',
+                                          '',
+                                        )
+                                      }
+                                      className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-sky-600 text-white hover:bg-sky-700 transition-colors cursor-pointer"
+                                    >
+                                      <span>
+                                        Filtered: {subFilters.fatherCode}
+                                      </span>
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  ) : (
+                                    <span className="text-[11px] text-slate-400">
+                                      Click a Father Code row to filter PO lines
+                                      below
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="overflow-x-auto custom-scrollbar">
+                                <table className="w-full text-left text-xs border-collapse">
+                                  <thead>
+                                    <tr className="bg-slate-100/80 text-slate-600 font-bold border-b border-slate-200 uppercase text-[10px] tracking-wider">
+                                      <th className="py-2.5 px-4 min-w-[180px]">
+                                        Father Code
+                                      </th>
+                                      <th className="py-2.5 px-3 text-right text-emerald-700 bg-emerald-50/40">
+                                        On Time Qty
+                                      </th>
+                                      <th className="py-2.5 px-3 text-right text-amber-700 bg-amber-50/30">
+                                        1 Wk Late
+                                      </th>
+                                      <th className="py-2.5 px-3 text-right text-orange-700 bg-orange-50/30">
+                                        2 Wks Late
+                                      </th>
+                                      <th className="py-2.5 px-3 text-right text-rose-700 bg-rose-50/30">
+                                        3 Wks Late
+                                      </th>
+                                      <th className="py-2.5 px-3 text-right text-red-700 bg-red-50/40">
+                                        4 Wks Late
+                                      </th>
+                                      <th className="py-2.5 px-3 text-right text-purple-700 bg-purple-50/40">
+                                        &gt; 4 Wks Late
+                                      </th>
+                                      <th className="py-2.5 px-4 text-right text-slate-900 bg-slate-100 font-bold">
+                                        Total Qty
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {supp.fatherCodes.map((fc) => {
+                                      const fb = fc.buckets;
+                                      const isSelected =
+                                        subFilters.fatherCode === fc.fatherCode;
+
+                                      return (
+                                        <tr
+                                          key={fc.fatherCode}
+                                          onClick={() =>
+                                            toggleFatherCodeSelection(
+                                              supp.name,
+                                              fc.fatherCode,
+                                            )
+                                          }
+                                          className={`cursor-pointer transition-colors ${
+                                            isSelected
+                                              ? 'bg-sky-50 ring-1 ring-inset ring-sky-300'
+                                              : 'hover:bg-slate-50/90'
+                                          }`}
+                                        >
+                                          <td className="py-2.5 px-4 font-bold text-slate-900">
+                                            <div className="flex items-center space-x-2">
+                                              <span
+                                                className={
+                                                  isSelected
+                                                    ? 'text-sky-700'
+                                                    : ''
+                                                }
+                                              >
+                                                {fc.fatherCode}
+                                              </span>
+                                              <span className="text-[10px] bg-slate-100 text-slate-500 font-normal px-2 py-0.5 rounded-full">
+                                                {fc.items.length} item
+                                                {fc.items.length > 1 ? 's' : ''}
+                                              </span>
+                                            </div>
+                                          </td>
+                                          <td className="py-2.5 px-3 text-right text-emerald-600 font-semibold bg-emerald-50/10">
+                                            <QtyPctCell
+                                              qty={fb.ON_TIME}
+                                              total={fc.totalQty}
+                                            />
+                                          </td>
+                                          <td className="py-2.5 px-3 text-right text-amber-600 bg-amber-50/10">
+                                            <QtyPctCell
+                                              qty={fb['1_WK']}
+                                              total={fc.totalQty}
+                                            />
+                                          </td>
+                                          <td className="py-2.5 px-3 text-right text-orange-600 bg-orange-50/10">
+                                            <QtyPctCell
+                                              qty={fb['2_WKS']}
+                                              total={fc.totalQty}
+                                            />
+                                          </td>
+                                          <td className="py-2.5 px-3 text-right text-rose-600 bg-rose-50/10">
+                                            <QtyPctCell
+                                              qty={fb['3_WKS']}
+                                              total={fc.totalQty}
+                                            />
+                                          </td>
+                                          <td className="py-2.5 px-3 text-right text-red-600 bg-red-50/10">
+                                            <QtyPctCell
+                                              qty={fb['4_WKS']}
+                                              total={fc.totalQty}
+                                            />
+                                          </td>
+                                          <td className="py-2.5 px-3 text-right text-purple-600 bg-purple-50/10">
+                                            <QtyPctCell
+                                              qty={fb.MORE_4_WKS}
+                                              total={fc.totalQty}
+                                            />
+                                          </td>
+                                          <td className="py-2.5 px-4 text-right font-bold text-slate-900 bg-slate-50">
+                                            <QtyPctCell
+                                              qty={fc.totalQty}
+                                              total={supp.totalQty}
+                                            />
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+
+                            {/* Detailed Material & PO Line Items Table */}
                             <div className="bg-white rounded-xl shadow-inner border border-slate-200 overflow-x-auto custom-scrollbar">
                               <table className="w-full text-left border-collapse">
                                 <thead>
@@ -434,7 +661,10 @@ export function SupplierAccordionTable({ items }: SupplierAccordionTableProps) {
                                           className="hover:bg-slate-50/80 text-xs text-slate-700 transition-colors border-b border-slate-200/60"
                                         >
                                           <td className="py-2.5 px-4 font-bold text-slate-900">
-                                            {it.materialCode}
+                                            <div>{it.materialCode}</div>
+                                            <span className="text-[10px] font-medium text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded inline-block mt-0.5">
+                                              Father: {it.fatherCode}
+                                            </span>
                                           </td>
                                           <td className="py-2.5 px-4 text-slate-600 font-mono">
                                             {it.poNumber}

@@ -13,25 +13,30 @@ import {
 } from 'lucide-react';
 import {
   DataSourceMode,
+  DeadlineMode,
   OriginCategoryFilter,
   ProcessedMaterialItem,
   RawMaterialItem,
 } from './types';
 import {
-  BASIC_MONTH_OPTIONS,
+  buildMonthCycleGroups,
   calculateItemStatus,
   downloadSampleExcelTemplate,
   exportFilteredToExcel,
+  getDeadlineDate,
   getDemoMaterialData,
+  getFatherCode,
   getMaterialCategory,
-  getTargetDeadline,
   parseExcelFile,
+  parsePeriodKey,
 } from './utils/deliveryUtils';
 import { exportFullViewToHtml } from './utils/exportHtmlReport';
 import { UploadDropzone } from './components/UploadDropzone';
 import { CategorySummaryTable } from './components/CategorySummaryTable';
 import { SupplierAccordionTable } from './components/SupplierAccordionTable';
 import { AnalyticsCharts } from './components/AnalyticsCharts';
+
+const DEFAULT_PERIOD_KEY = '2026-8'; // September 2026
 
 export default function App() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -44,8 +49,10 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Filter state
+  const [deadlineMode, setDeadlineMode] = useState<DeadlineMode>('basic');
   const [selectedSupplier, setSelectedSupplier] = useState<string>('ALL');
-  const [basicMonthIdx, setBasicMonthIdx] = useState<number>(8); // September Basic (Target: Nov 10)
+  const [selectedPeriod, setSelectedPeriod] =
+    useState<string>(DEFAULT_PERIOD_KEY);
   const [originCategory, setOriginCategory] =
     useState<OriginCategoryFilter>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -59,7 +66,8 @@ export default function App() {
 
   const resetAllFilters = () => {
     setSelectedSupplier('ALL');
-    setBasicMonthIdx(8);
+    setDeadlineMode('basic');
+    setSelectedPeriod(DEFAULT_PERIOD_KEY);
     setOriginCategory('ALL');
     setSearchQuery('');
   };
@@ -109,10 +117,17 @@ export default function App() {
     return [...new Set(rawMaterialData.map((item) => item.supplier))].sort();
   }, [rawMaterialData]);
 
+  const monthCycleGroups = useMemo(() => {
+    const extraYears = rawMaterialData.map((item) =>
+      item.etaDate.getFullYear(),
+    );
+    return buildMonthCycleGroups(deadlineMode, extraYears);
+  }, [deadlineMode, rawMaterialData]);
+
   const targetDeadline = useMemo(() => {
-    const sampleYear = rawMaterialData[0]?.etaDate?.getFullYear() || 2026;
-    return getTargetDeadline(basicMonthIdx, sampleYear);
-  }, [rawMaterialData, basicMonthIdx]);
+    const { year, monthIndex } = parsePeriodKey(selectedPeriod);
+    return getDeadlineDate(monthIndex, year, deadlineMode);
+  }, [selectedPeriod, deadlineMode]);
 
   const formattedDeadline = useMemo(() => {
     return targetDeadline.toLocaleDateString('en-GB', {
@@ -138,6 +153,7 @@ export default function App() {
       .map((item) => ({
         ...item,
         category: getMaterialCategory(item.materialCode),
+        fatherCode: getFatherCode(item.materialCode),
         statusInfo: calculateItemStatus(item, targetDeadline),
       }))
       .filter((item) => {
@@ -171,6 +187,9 @@ export default function App() {
     return filteredMaterialData.reduce((sum, i) => sum + i.qty, 0);
   }, [filteredMaterialData]);
 
+  const deadlineModeLabel =
+    deadlineMode === 'sub' ? 'Sub Month' : 'Basic Month';
+
   const handleExportExcel = () => {
     if (filteredMaterialData.length === 0) {
       setErrorMessage('No filtered rows available to export.');
@@ -187,9 +206,11 @@ export default function App() {
     }
     setErrorMessage(null);
 
-    const basicMonthLabel =
-      BASIC_MONTH_OPTIONS.find((opt) => opt.value === basicMonthIdx)?.label ??
-      'September Basic (Target: Nov 10)';
+    const activeOption = monthCycleGroups
+      .flatMap((g) => g.options)
+      .find((opt) => opt.value === selectedPeriod);
+
+    const periodLabel = activeOption?.label ?? formattedDeadline;
 
     const categoryChartDataUrl = categoryCanvasRef.current
       ? categoryCanvasRef.current.toDataURL('image/png')
@@ -201,7 +222,8 @@ export default function App() {
     exportFullViewToHtml({
       items: filteredMaterialData,
       formattedDeadline,
-      basicMonthLabel,
+      deadlineModeLabel,
+      basicMonthLabel: periodLabel,
       selectedSupplier,
       originCategory,
       searchQuery,
@@ -239,7 +261,9 @@ export default function App() {
           </div>
 
           <div className="hidden md:flex items-center bg-slate-800 border border-slate-700 px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-200 space-x-2 shrink-0">
-            <span className="text-slate-400">Target Deadline:</span>
+            <span className="text-slate-400">
+              Target Deadline ({deadlineMode === 'sub' ? 'Sub' : 'Basic'}):
+            </span>
             <span className="text-sky-400 font-bold">
               {hasData ? formattedDeadline : shortDeadline}
             </span>
@@ -369,6 +393,77 @@ export default function App() {
               </div>
             )}
 
+            {/* Deadline Mode Tabs: Basic Month vs Sub Month */}
+            <div className="bg-white rounded-2xl p-2 shadow-sm border border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
+              <div
+                className="inline-flex items-center bg-slate-100 p-1 rounded-xl gap-1"
+                role="tablist"
+                aria-label="Deadline Month Type"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={deadlineMode === 'basic'}
+                  onClick={() => setDeadlineMode('basic')}
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center space-x-2 ${
+                    deadlineMode === 'basic'
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                  }`}
+                >
+                  <span>Basic Month</span>
+                  <span
+                    className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                      deadlineMode === 'basic'
+                        ? 'bg-sky-500/20 text-sky-300'
+                        : 'bg-slate-200 text-slate-500'
+                    }`}
+                  >
+                    +2M &bull; 10th
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={deadlineMode === 'sub'}
+                  onClick={() => setDeadlineMode('sub')}
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center space-x-2 ${
+                    deadlineMode === 'sub'
+                      ? 'bg-sky-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                  }`}
+                >
+                  <span>Sub Month</span>
+                  <span
+                    className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                      deadlineMode === 'sub'
+                        ? 'bg-white/20 text-white'
+                        : 'bg-slate-200 text-slate-500'
+                    }`}
+                  >
+                    +1M &bull; 12th
+                  </span>
+                </button>
+              </div>
+
+              <div className="text-xs text-slate-500 px-2">
+                {deadlineMode === 'basic' ? (
+                  <span>
+                    <strong className="text-slate-700">Basic Month Rule:</strong>{' '}
+                    Target deadline is the <strong>10th</strong>, two months
+                    ahead (e.g. Jan 2027 &rarr; 10 Mar 2027)
+                  </span>
+                ) : (
+                  <span>
+                    <strong className="text-sky-700">Sub Month Rule:</strong>{' '}
+                    Target deadline is the <strong>12th</strong>, one month
+                    ahead (e.g. Nov 2026 &rarr; 12 Dec 2026, Dec 2026 &rarr; 12
+                    Jan 2027)
+                  </span>
+                )}
+              </div>
+            </div>
+
             {/* Controls / Filters Bar */}
             <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200/80 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
               <div className="flex flex-wrap items-center gap-3 flex-1">
@@ -391,20 +486,24 @@ export default function App() {
                   </select>
                 </div>
 
-                {/* Basic Month Dropdown */}
-                <div className="flex flex-col min-w-[170px]">
+                {/* Basic Month / Sub Month Dropdown */}
+                <div className="flex flex-col min-w-[230px]">
                   <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                    Basic Month
+                    {deadlineMode === 'sub' ? 'Sub Month' : 'Basic Month'}
                   </label>
                   <select
-                    value={basicMonthIdx}
-                    onChange={(e) => setBasicMonthIdx(Number(e.target.value))}
+                    value={selectedPeriod}
+                    onChange={(e) => setSelectedPeriod(e.target.value)}
                     className="bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl focus:ring-2 focus:ring-sky-500 p-2.5 font-medium outline-none"
                   >
-                    {BASIC_MONTH_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
+                    {monthCycleGroups.map((group) => (
+                      <optgroup key={group.groupLabel} label={group.groupLabel}>
+                        {group.options.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                 </div>
@@ -484,7 +583,7 @@ export default function App() {
                 </div>
                 <div>
                   <div className="text-xs text-sky-300 font-medium">
-                    Active Basic Month Deadline
+                    Active {deadlineModeLabel} Deadline
                   </div>
                   <div className="text-lg font-bold text-white">
                     Target Delivery Deadline: {formattedDeadline}
