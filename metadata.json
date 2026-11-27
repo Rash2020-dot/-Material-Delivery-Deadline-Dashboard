@@ -2,5 +2,7 @@
   "name": "Material Delivery Deadline Dashboard",
   "description": "Delay tracking and lead-time analytics dashboard for material delivery Excel reports with built-in demo data mode.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
