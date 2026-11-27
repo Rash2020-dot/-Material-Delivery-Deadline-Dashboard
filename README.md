@@ -53,6 +53,15 @@ npm run build
 npm run preview
 ```
 
+## GitHub Pages Deployment
+
+This repository includes an automatic GitHub Actions workflow (`.github/workflows/deploy.yml`) and uses relative asset paths (`base: './'`) in `vite.config.ts`.
+
+1. Push your code to the `main` branch on GitHub.
+2. Open your repository on GitHub and go to **Settings → Pages**.
+3. Under **Build and deployment → Source**, select **GitHub Actions** (do **not** select "Deploy from a branch", as browsers cannot run raw `.tsx` files).
+4. Wait ~1 minute for the **Deploy to GitHub Pages** workflow in the **Actions** tab to finish, then open your GitHub Pages link.
+
 ## Privacy Note for GitHub
 
 `.gitignore` is configured to ignore `*.xlsx`, `*.xls`, and `*.csv` files so private production spreadsheets are never accidentally committed to your GitHub repository. Only synthetic demo records exist in `src/data/demoData.ts`.
