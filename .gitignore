@@ -1,0 +1,14 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Prevent private uploaded spreadsheets and attachments from being committed to GitHub
+*.xlsx
+*.xls
+*.csv
+public/assets/aistudio/
